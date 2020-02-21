@@ -24,7 +24,7 @@ foreach (var prefab in PrefabHelper.GetPrefabs())
     dumper.AddGameObject(prefab);
 
 // Save the scene
-File.WriteAllText(Path.Combine(baseDir, "Prefabs.unity"));
+File.WriteAllText(Path.Combine(baseDir, "Prefabs.unity"), dumper.ToString());
 ```
 
 # Fine-tuning

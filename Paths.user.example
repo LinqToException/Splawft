@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- Path to the folder that contains the Newtonsoft.Json.dll and 0Harmony.dll -->
+    <LibDir>C:\path\to\libraries</LibDir>
+    
+    <!-- Path to the Unity Editor's 'Editor\Data' folder -->
+    <UnityDir>C:\Program Files\Unity\Hub\Editor\2018.2.21f1\Editor\Data</UnityDir>
+  </PropertyGroup>
+</Project>

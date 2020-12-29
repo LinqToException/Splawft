@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -9,6 +10,14 @@ namespace Splawft
     /// </summary>
     public static class DebugUtil
     {
+        public static Dictionary<int, string> GetLayerNames()
+        {
+            return Enumerable.Range(0, 32)
+                .Select(i => (i, Name: LayerMask.LayerToName(i)))
+                .Where(k => !string.IsNullOrEmpty(k.Name))
+                .ToDictionary(p => p.i, p => p.Name);
+        }
+
         /// <summary>
         /// Returns the collision matrix, as found in DynamicsManager.asset::m_LayerCollisionMatrix.
         /// (i.e. you can copy this to an Unity project to mimick the layer mask)

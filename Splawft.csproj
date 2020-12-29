@@ -17,15 +17,10 @@
   <ItemGroup>
     <PackageReference Include="Serilog" Version="2.8.0" />
 
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>$(LibDir)\Newtonsoft.Json.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
 
-    <Reference Include="0Harmony">
-      <HintPath>$(LibDir)\0Harmony.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
+
+    <PackageReference Include="Lib.Harmony" Version="2.0.4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,6 +35,16 @@
       <Private>False</Private>
     </Reference>
 
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(LibDir)\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(LibDir)\Unity.TextMeshPro.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    
     <Reference Include="UnityEngine.AnimationModule">
       <HintPath>$(UnityDir)\Managed\UnityEngine\UnityEngine.AnimationModule.dll</HintPath>
       <Private>False</Private>
@@ -92,10 +97,6 @@
       <Private>False</Private>
     </Reference>
 
-    <Reference Include="UnityEngine.UI">
-      <HintPath>$(UnityDir)\UnityExtensions\Unity\GUISystem\Standalone\UnityEngine.UI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
 
     <Reference Include="UnityEngine.ParticleSystemModule">
       <HintPath>$(UnityDir)\Managed\UnityEngine\UnityEngine.ParticleSystemModule.dll</HintPath>

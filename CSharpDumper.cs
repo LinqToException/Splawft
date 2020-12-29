@@ -1,4 +1,4 @@
-﻿using Harmony;
+﻿using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -70,7 +70,20 @@ namespace Splawft
         /// <returns><see langword="true"/> if the type was dumped, <see langword="false"/> otherwise.</returns>
         public bool DumpIfNotExists(Type type, out Dictionary<Type, string> guids)
         {
-            type = type.DeArray();
+            type = type.DeArray().GetRoot();
+
+            if (type.IsGenericType)
+            {
+                foreach (var arg in type.GetGenericArguments())
+                {
+                    if (arg.IsGenericParameter)
+                        continue;
+
+                    referencedTypes.Enqueue(arg);
+                }
+
+                type = type.GetGenericTypeDefinition();
+            }
 
             if (!dumpedTypes.Add(type) || !ShouldDumpType(type))
             {
@@ -85,7 +98,21 @@ namespace Splawft
             // Dump all referenced types
             while (referencedTypes.Count > 0)
             {
-                var childType = referencedTypes.Dequeue().DeArray();
+                var childType = referencedTypes.Dequeue().DeArray().GetRoot();
+
+                if (childType.IsGenericType)
+                {
+                    foreach (var arg in childType.GetGenericArguments())
+                    {
+                        if (arg.IsGenericParameter)
+                            continue;
+
+                        referencedTypes.Enqueue(arg);
+                    }
+
+                    childType = childType.GetGenericTypeDefinition();
+                }
+
                 if (!dumpedTypes.Add(childType) || !ShouldDumpType(childType))
                     continue;
 
@@ -117,7 +144,7 @@ namespace Splawft
             }
 
             guid = m.Groups[2].Value;
-            type = Harmony.AccessTools.TypeByName(m.Groups[1].Value);
+            type = AccessTools.TypeByName(m.Groups[1].Value);
             if (type == null)
             {
                 guid = null;
@@ -147,7 +174,7 @@ namespace Splawft
             if (!Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
 
-            var csFileName = Path.Combine(dir, type.Name + ".cs");
+            var csFileName = Path.Combine(dir, type.GetClassName(false, true).Replace('<', '(').Replace('>', ')') + ".cs");
             if (File.Exists(csFileName) && TryGetGuid(csFileName, out var guid, out var newType))
             {
                 if (type != newType)
@@ -195,7 +222,14 @@ MonoImporter:
             else
             {
                 if (ShouldDumpType(type.BaseType))
-                    referencedTypes.Enqueue(type.BaseType);
+                    referencedTypes.Enqueue(type.BaseType.GetRoot());
+
+                if (type.IsGenericType)
+                {
+                    foreach (var arg in type.GetGenericArguments())
+                        if (ShouldDumpType(arg))
+                            referencedTypes.Enqueue(arg.GetRoot());
+                }
 
                 DumpClass(type, sb, type.Namespace == null ? -4 : 0);
             }
@@ -206,7 +240,7 @@ MonoImporter:
             return sb.ToString();
         }
 
-        private void DumpClass(Type type, StringBuilder sb, int indentionLevel)
+        private void DumpClass(Type type, StringBuilder sb, int indentionLevel, bool shorten = false)
         {
             string ind = new string(' ', indentionLevel + 4);
             if (type.IsEnum)
@@ -220,7 +254,7 @@ MonoImporter:
                 if (type.GetCustomAttributes(true).OfType<SerializableAttribute>().Any())
                     sb.AppendLine($"{ind}[System.Serializable]");
 
-                sb.AppendLine($"{ind}public {(type.IsAbstract ? "abstract " : "")}partial class {type.Name} : {type.BaseType.GetClassName()} {{");
+                sb.AppendLine($"{ind}public {(type.IsAbstract && !type.IsInterface ? "abstract " : "")}partial {(type.IsInterface ? "interface" : "class")} {type.GetClassName(false, !shorten)}{(type.BaseType != null ? " : " + type.BaseType.GetClassName() : "")} {{");
                 foreach (var field in AccessTools.GetDeclaredFields(type))
                 {
                     if (!field.IsPublic && !field.GetCustomAttributes(false).OfType<SerializeField>().Any())
@@ -250,12 +284,12 @@ MonoImporter:
                     if (BlacklistedTypes.Contains(ft))
                         continue;
 
-                    // Do not dump generic fields
+                    // Do not dump generic fields - they can't be serialized anyway.
                     if (ft.IsGenericType || ft.IsConstructedGenericType)
                         continue;
 
                     sb.AppendLine($"{ind}    public {field.FieldType.GetClassName()} {field.Name};");
-                    referencedTypes.Enqueue(field.FieldType);
+                    referencedTypes.Enqueue(field.FieldType.GetRoot());
                 }
 
                 foreach (var nested in type.GetNestedTypes())
@@ -263,7 +297,7 @@ MonoImporter:
                     if (ShouldDumpNested(nested))
                     {
                         sb.AppendLine();
-                        DumpClass(nested, sb, indentionLevel + 4);
+                        DumpClass(nested, sb, indentionLevel + 4, true);
                     }
                     else
                         logger.Debug("Do not dump {NestedType} (pub: {IsPublic}, obj: {IsObject}, serial: {IsSerializable}, enum: {IsEnum}.", nested.FullName, nested.IsNestedPublic, typeof(UnityEngine.Object).IsAssignableFrom(nested), nested.GetCustomAttributes(true).OfType<SerializableAttribute>().Any(), nested.IsEnum);

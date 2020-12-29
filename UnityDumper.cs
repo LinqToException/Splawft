@@ -4,11 +4,11 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using Harmony;
 using UnityEngine;
 using Object = UnityEngine.Object;
 using Newtonsoft.Json;
 using Splawft.YAMLSON;
+using HarmonyLib;
 
 namespace Splawft
 {
@@ -31,6 +31,7 @@ namespace Splawft
         private MaterialDumper materialDumper;
         private TextureDumper textureDumper;
 
+        private static string Stringify(Vector2 v) => $"{{x: {v.x}, y: {v.y}}}";
         private static string Stringify(Vector3 v) => $"{{x: {v.x}, y: {v.y}, z: {v.z}}}";
         private static string Stringify(Quaternion q) => $"{{x: {q.x}, y: {q.y}, z: {q.z}, w: {q.w}}}";
         private static string Escape(string s) => $"'{s.Replace("'", "''")}'";
@@ -121,7 +122,7 @@ GameObject:
             {
                 if (MonoBehaviourGuids.TryGetValue(mb.GetType(), out var t))
                     AddMonoBehaviour(mb, t);
-                else if (dumper != null && dumper.DumpIfNotExists(mb.GetType(), out var guids))
+                else if ((dumper != null && dumper.DumpIfNotExists(mb.GetType(), out var guids)) || IsBuiltInType(component.GetType(), out guids))
                 {
                     foreach (var p in guids)
                         MonoBehaviourGuids[p.Key] = p.Value;
@@ -143,6 +144,9 @@ GameObject:
             {
                 case BoxCollider bc:
                     AddBoxCollider(bc);
+                    return true;
+                case CanvasRenderer cr:
+                    AddCanvasRenderer(cr);
                     return true;
                 case CapsuleCollider cc:
                     AddCapsuleCollider(cc);
@@ -171,8 +175,42 @@ GameObject:
                 case MeshRenderer mr:
                     AddMeshRenderer(mr);
                     return true;
+                case Sprite sprite:
+                    textureDumper?.DumpTexture(sprite.texture);
+                    return true;
                 default:
                     return false;
+            }
+        }
+
+        private static Dictionary<Type, string> builtInTypes = new Dictionary<Type, string>
+        {
+            { typeof(UnityEngine.UI.Image),                 "fe87c0e1cc204ed48ad3b37840f39efc" },
+            { typeof(UnityEngine.UI.ScrollRect),            "1aa08ab6e0800fa44ae55d278d1423e3" },
+            { typeof(UnityEngine.UI.VerticalLayoutGroup),   "59f8146938fff824cb5fd77236b75775" },
+            { typeof(UnityEngine.UI.LayoutElement),         "306cc8c2b49d7114eaa3623786fc2126" },
+            { typeof(UnityEngine.UI.RectMask2D),            "3312d7739989d2b4e91e6319e9a96d76" },
+            { typeof(UnityEngine.UI.GridLayoutGroup),       "8a8695521f0d02e499659fee002a26c2" },
+            { typeof(UnityEngine.UI.ContentSizeFitter),     "3245ec927659c4140ac4f8d17403cc18" },
+            { typeof(UnityEngine.UI.Scrollbar),             "2a4db7a114972834c8e4117be1d82ba3" },
+            { typeof(UnityEngine.UI.HorizontalLayoutGroup), "30649d3a9faa99c48a7b1166b86bf2a0" },
+            { typeof(UnityEngine.UI.Toggle),                "9085046f02f69544eb97fd06b6048fe2" },
+            { typeof(UnityEngine.UI.ToggleGroup),           "2fafe2cfe61f6974895a912c3755e8f1" },
+            { typeof(TMPro.TextMeshProUGUI),                "f4688fdb7df04437aeb418b961361dc5" },
+
+        };
+
+        private bool IsBuiltInType(Type type, out Dictionary<Type, string> types)
+        {
+            if (builtInTypes.TryGetValue(type, out var guid))
+            {
+                types = new Dictionary<Type, string> { { type, guid } };
+                return true;
+            }
+            else
+            {
+                types = null;
+                return false;
             }
         }
 
@@ -186,9 +224,18 @@ GameObject:
             if (siblings != null)
                 rootOrder = siblings.IndexOf(transform);
 
-            sb.AppendLine($@"--- !u!4 &{transform.GetInstanceID()}
-Transform:
-  m_ObjectHideFlags: {(int)transform.hideFlags}
+            if (transform is RectTransform)
+            {
+                sb.AppendLine($@"--- !u!224 &{transform.GetInstanceID()}
+RectTransform:");
+            }
+            else
+            {
+                sb.AppendLine($@"--- !u!4 &{transform.GetInstanceID()}
+Transform:");
+            }
+
+            sb.AppendLine($@"  m_ObjectHideFlags: {(int)transform.hideFlags}
   m_CorrespondingSourceObject: {{fileID: 0}}
   m_PrefabInternal: {{fileID: 0}}
   m_GameObject: {{fileID: {transform.gameObject.GetInstanceID()}}}
@@ -204,6 +251,15 @@ Transform:
             sb.AppendLine($@"  m_Father: {{fileID: {transform.parent?.GetInstanceID() ?? 0}}}
   m_RootOrder: {rootOrder}
   m_LocalEulerAnglesHint: {Stringify(transform.localEulerAngles)}");
+
+            if (transform is RectTransform rt)
+            {
+                sb.AppendLine($@"  m_AnchorMin: {Stringify(rt.anchorMin)}
+  m_AnchorMax: {Stringify(rt.anchorMax)}
+  m_AnchoredPosition: {Stringify(rt.anchoredPosition)}
+  m_SizeDelta: {Stringify(rt.sizeDelta)}
+  m_Pivot: {Stringify(rt.pivot)}");
+            }
 
             AddGameObject(transform.gameObject);
             if (transform.parent != null)
@@ -272,7 +328,6 @@ MonoBehaviour:
 
             var oldSb = sb;
             this.sb = new StringBuilder();
-            List<MonoBehaviour> mbs = new List<MonoBehaviour>();
             foreach (var field in o.GetType().GetFields(AccessTools.all))
             {
                 if (!field.IsUnitySerializable())
@@ -355,6 +410,21 @@ MeshRenderer:
   m_RenderingLayerMask: {mr.renderingLayerMask}
   m_RendererPriority: {mr.rendererPriority}
   m_Materials: {materials}");
+        }
+
+        private void AddCanvasRenderer(CanvasRenderer cr)
+        {
+            if (!dumped.Add(cr))
+                return;
+
+            sb.AppendLine($@"--- !u!222 &{cr.GetInstanceID()}
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {{fileID: 0}}
+  m_PrefabInstance: {{fileID: 0}}
+  m_PrefabAsset: {{fileID: 0}}
+  m_GameObject: {{fileID: {cr.gameObject.GetInstanceID()}}}
+  m_CullTransparentMesh: {cr.cullTransparentMesh}");
         }
     }
 }

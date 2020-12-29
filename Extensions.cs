@@ -30,15 +30,51 @@ namespace Splawft
         /// <summary>
         /// Returns the type name as a C# identifier.
         /// </summary>
-        public static string GetClassName(this Type type)
+        public static string GetClassName(this Type type, bool includeNamespace = true, bool includeDeclaring = true)
         {
+            if (type == null)
+            {
+                Debug.LogWarning("null type passed: " + UnityEngine.StackTraceUtility.ExtractStackTrace());
+                return "null";
+            }
+
+            if (type.IsGenericParameter)
+                return type.Name;
+
             if (type.IsArray && type.HasElementType)
                 return $"{GetClassName(type.GetElementType())}[]";
 
-            if (!type.IsNested)
-                return type.FullName;
+            var result = "";
+            if (includeNamespace && !string.IsNullOrEmpty(type.Namespace))
+                result += $"{type.Namespace}.";
 
-            return type.DeclaringType.GetClassName() + "." + type.Name;
+            if (includeDeclaring && type.IsNested)
+                result += $"{GetClassName(type.DeclaringType, false, true)}.";
+
+            var name = type.Name;
+            if (type.IsGenericType && type.GetGenericTypeDefinition() != null && type.GetGenericArguments() != null)
+            {
+                var t = type.GetGenericTypeDefinition().Name;
+                if (t.Contains("`"))
+                    t = t.Remove(t.IndexOf("`"));
+
+                result += t + "<" + string.Join(", ", type.GetGenericArguments().Select(s => GetClassName(s))) + ">";
+            }
+            else
+                result += type.Name;
+
+            return result;
+        }
+
+        /// <summary>
+        /// Returns the root (non-nested) type
+        /// </summary>
+        public static Type GetRoot(this Type type)
+        {
+            while (type.IsNested)
+                type = type.DeclaringType;
+
+            return type;
         }
 
         /// <summary>

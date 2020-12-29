@@ -1,6 +1,6 @@
-﻿using Newtonsoft.Json.Serialization;
+﻿using HarmonyLib;
+using Newtonsoft.Json.Serialization;
 using System.Collections.Generic;
-using Harmony;
 using System.Reflection;
 
 namespace Splawft.YAMLSON
